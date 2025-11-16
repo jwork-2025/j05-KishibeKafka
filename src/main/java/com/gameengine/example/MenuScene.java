@@ -1,17 +1,18 @@
 package com.gameengine.example;
 
-import com.gameengine.core.GameEngine;
-import com.gameengine.graphics.IRenderer;
-import com.gameengine.input.InputManager;
-import com.gameengine.math.Vector2;
-import com.gameengine.scene.Scene;
-import com.gameengine.recording.RecordingConfig;
-import com.gameengine.recording.RecordingService;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import com.gameengine.core.GameEngine;
+import com.gameengine.core.SpriteLoader;
+import com.gameengine.graphics.IRenderer;
+import com.gameengine.input.InputManager;
+import com.gameengine.math.Vector2;
+import com.gameengine.recording.RecordingConfig;
+import com.gameengine.recording.RecordingService;
+import com.gameengine.scene.Scene;
 
 public class MenuScene extends Scene {
     public enum MenuOption {
@@ -19,9 +20,10 @@ public class MenuScene extends Scene {
         REPLAY,
         EXIT
     }
-    
+
     private IRenderer renderer;
     private InputManager inputManager;
+    private SpriteLoader spriteLoader;
     private GameEngine engine;
     private int selectedIndex;
     private MenuOption[] options;
@@ -30,12 +32,13 @@ public class MenuScene extends Scene {
     private List<String> replayFiles;
     private boolean showReplayInfo;
     private int debugFrames;
-    
+
     public MenuScene(GameEngine engine, String name) {
         super(name);
         this.engine = engine;
         this.renderer = engine.getRenderer();
         this.inputManager = InputManager.getInstance();
+        this.spriteLoader = SpriteLoader.getInstance();
         this.selectedIndex = 0;
         this.options = new MenuOption[]{MenuOption.START_GAME, MenuOption.REPLAY, MenuOption.EXIT};
         this.selectionMade = false;
@@ -43,9 +46,9 @@ public class MenuScene extends Scene {
         this.replayFiles = new ArrayList<>();
         this.showReplayInfo = false;
     }
-    
+
     private void loadReplayFiles() {}
-    
+
     @Override
     public void initialize() {
         super.initialize();
@@ -53,26 +56,24 @@ public class MenuScene extends Scene {
         selectedIndex = 0;
         selectionMade = false;
         debugFrames = 0;
-        
     }
     
     @Override
     public void update(float deltaTime) {
         super.update(deltaTime);
-        
         handleMenuSelection();
         
         if (selectionMade) {
             processSelection();
         }
     }
-    
+
     private void handleMenuSelection() {
-        if (inputManager.isKeyJustPressed(38)) {
+        if (inputManager.isKeyJustPressed(38) || inputManager.isKeyJustPressed(265)) {
             selectedIndex = (selectedIndex - 1 + options.length) % options.length;
-        } else if (inputManager.isKeyJustPressed(40)) {
+        } else if (inputManager.isKeyJustPressed(40) || inputManager.isKeyJustPressed(264)) {
             selectedIndex = (selectedIndex + 1) % options.length;
-        } else if (inputManager.isKeyJustPressed(10) || inputManager.isKeyJustPressed(32)) {
+        } else if (inputManager.isKeyJustPressed(257) || inputManager.isKeyJustPressed(32)) {
             selectionMade = true;
             selectedOption = options[selectedIndex];
             
@@ -98,13 +99,15 @@ public class MenuScene extends Scene {
                 selectedIndex = 0;
                 selectionMade = true;
                 selectedOption = MenuOption.START_GAME;
-            } else if (mousePos.y >= buttonY2 - 30 && mousePos.y <= buttonY2 + 30) {
+            } 
+            else if (mousePos.y >= buttonY2 - 30 && mousePos.y <= buttonY2 + 30) {
                 selectedIndex = 1;
                 selectedOption = MenuOption.REPLAY;
                 engine.disableRecording();
                 Scene replay = new ReplayScene(engine, null);
                 engine.setScene(replay);
-            } else if (mousePos.y >= buttonY3 - 30 && mousePos.y <= buttonY3 + 30) {
+            } 
+            else if (mousePos.y >= buttonY3 - 30 && mousePos.y <= buttonY3 + 30) {
                 selectedIndex = 2;
                 selectionMade = true;
                 selectedOption = MenuOption.EXIT;
@@ -113,15 +116,6 @@ public class MenuScene extends Scene {
                 System.exit(0);
             }
         }
-    }
-
-    private String findLatestRecording() {
-        File dir = new File("recordings");
-        if (!dir.exists() || !dir.isDirectory()) return null;
-        File[] files = dir.listFiles((d, name) -> name.endsWith(".json") || name.endsWith(".jsonl"));
-        if (files == null || files.length == 0) return null;
-        Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-        return files[0].getAbsolutePath();
     }
     
     private void processSelection() {
@@ -143,9 +137,7 @@ public class MenuScene extends Scene {
             
         }
     }
-    
-    private void switchToReplayScene() {}
-    
+
     @Override
     public void render() {
         if (renderer == null) return;
@@ -157,7 +149,7 @@ public class MenuScene extends Scene {
             debugFrames++;
         }
         
-        renderer.drawRect(0, 0, width, height, 0.25f, 0.25f, 0.35f, 1.0f);
+        renderer.drawImage(0, 0, width, height, spriteLoader.GetImageByName("BackgroundImage"));
         
         super.render();
         
@@ -173,7 +165,7 @@ public class MenuScene extends Scene {
         float centerX = width / 2.0f;
         float centerY = height / 2.0f;
         
-        String title = "GAME ENGINE";
+        String title = "HULU";
         float titleWidth = title.length() * 20.0f;
         float titleX = centerX - titleWidth / 2.0f;
         float titleY = 120.0f;
@@ -213,22 +205,19 @@ public class MenuScene extends Scene {
         }
         
         String hint1 = "USE ARROWS OR MOUSE TO SELECT, ENTER TO CONFIRM";
-        float hint1Width = hint1.length() * 20.0f;
+        float hint1Width = hint1.length() * 5f;
         float hint1X = centerX - hint1Width / 2.0f;
         renderer.drawText(hint1X, height - 100, hint1, 0.6f, 0.6f, 0.6f, 1.0f);
         
         String hint2 = "ESC TO EXIT";
-        float hint2Width = hint2.length() * 20.0f;
+        float hint2Width = hint2.length() * 5f;
         float hint2X = centerX - hint2Width / 2.0f;
         renderer.drawText(hint2X, height - 70, hint2, 0.6f, 0.6f, 0.6f, 1.0f);
 
-        if (showReplayInfo) {
-            String info = "REPLAY COMING SOON";
-            float w = info.length() * 20.0f;
-            renderer.drawText(centerX - w / 2.0f, height - 140, info, 0.9f, 0.8f, 0.2f, 1.0f);
-        }
+        // if (showReplayInfo) {
+        //     String info = "REPLAY COMING SOON";
+        //     float w = info.length() * 20.0f;
+        //     renderer.drawText(centerX - w / 2.0f, height - 140, info, 0.9f, 0.8f, 0.2f, 1.0f);
+        // }
     }
-    
-    
 }
-

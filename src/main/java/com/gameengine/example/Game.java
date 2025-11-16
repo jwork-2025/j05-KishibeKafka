@@ -1,7 +1,8 @@
 package com.gameengine.example;
 
 import com.gameengine.core.GameEngine;
-import com.gameengine.graphics.RenderBackend;
+import com.gameengine.example.MenuScene;
+import com.gameengine.graphics.RenderBackend;;
 
 public class Game {
     public static void main(String[] args) {
@@ -9,8 +10,8 @@ public class Game {
 
         GameEngine engine = null;
         try {
-            System.out.println("使用渲染后端: GPU");
-            engine = new GameEngine(1024, 768, "游戏引擎", RenderBackend.GPU);
+            // System.out.println("使用渲染后端: GPU");
+            engine = new GameEngine(1920, 1080, "游戏引擎", RenderBackend.GPU);
 
             MenuScene menuScene = new MenuScene(engine, "MainMenu");
             engine.setScene(menuScene);
@@ -24,5 +25,3 @@ public class Game {
         System.out.println("游戏结束");
     }
 }
-
-

@@ -108,12 +108,24 @@ public class PhysicsSystem {
         float posY = pos.y;
         
         if (posX <= 0 || posX >= screenWidth - 15) {
-            velX = -velX;
-            velocityChanged = true;
+            if (owner.getName().equals("Fireball")) {
+                scene.removeGameObject(owner);
+                return;
+            }
+            else{
+                velX = -velX;
+                velocityChanged = true;
+            }
         }
         if (posY <= 0 || posY >= screenHeight - 15) {
-            velY = -velY;
-            velocityChanged = true;
+            if (owner.getName().equals("Fireball")) {
+                scene.removeGameObject(owner);
+                return;
+            }
+            else{
+                velY = -velY;
+                velocityChanged = true;
+            }
         }
         
         if (posX < 0) posX = 0;

@@ -30,6 +30,10 @@ public class PhysicsComponent extends Component<PhysicsComponent> {
     }
     
     @Override
+    public void update(float deltaTime) {
+    }
+
+    @Override
     public void render() {
     }
     

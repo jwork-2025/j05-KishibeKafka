@@ -25,6 +25,7 @@ public class GPURenderer implements IRenderer {
     private boolean initialized;
     private long window;
     private Map<Character, Integer> charTextures;
+    private Map<BufferedImage, Integer> imageTextureCache;
     private Font font;
     private int fontSize;
     private boolean texturesPreloaded;
@@ -38,6 +39,7 @@ public class GPURenderer implements IRenderer {
         this.initialized = false;
         this.window = 0;
         this.charTextures = new HashMap<>();
+        this.imageTextureCache = new HashMap<>();
         this.font = new Font(Font.MONOSPACED, Font.BOLD, 32);
         this.fontSize = 32;
         this.texturesPreloaded = false;
@@ -270,6 +272,136 @@ public class GPURenderer implements IRenderer {
         
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
         GL11.glDisable(GL11.GL_TEXTURE_2D);
+    }
+
+    @Override
+    public void drawImage(float x, float y, float width, float height, BufferedImage image) {
+        if (!initialized || image == null) {
+            return;
+        }
+    
+        int imgWidth = image.getWidth();
+        int imgHeight = image.getHeight();
+        if (imgWidth <= 0 || imgHeight <= 0) {
+            return;
+        }
+    
+        // 1. 从缓存获取纹理ID，没有则创建并缓存
+        int textureId = imageTextureCache.getOrDefault(image, 0);
+        if (textureId <= 0) {
+            // 缓存未命中，创建纹理并上传数据
+            textureId = createImageTexture(image);
+            if (textureId > 0) {
+                imageTextureCache.put(image, textureId); // 存入缓存
+                System.out.println("[GPURenderer] 缓存图像纹理，ID：" + textureId + "，尺寸：" + imgWidth + "x" + imgHeight);
+            } else {
+                System.err.println("[GPURenderer] drawImage: 纹理创建失败");
+                return;
+            }
+        }
+    
+        // 2. 绘制纹理（复用已缓存的纹理，无重复上传）
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+    
+        // 纹理环境：使用原始纹理颜色（避免颜色叠加影响）
+        GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL11.GL_TEXTURE_ENV_MODE, GL11.GL_REPLACE);
+        GL11.glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // 基础颜色不影响纹理
+    
+        // 绘制四边形（纹理坐标与屏幕坐标映射）
+        GL11.glBegin(GL11.GL_QUADS);
+        // 左上角：纹理(0,0) → 屏幕(x,y)
+        GL11.glTexCoord2f(0.0f, 0.0f);
+        GL11.glVertex2f(x, y);
+        // 右上角：纹理(1,0) → 屏幕(x+width,y)
+        GL11.glTexCoord2f(1.0f, 0.0f);
+        GL11.glVertex2f(x + width, y);
+        // 右下角：纹理(1,1) → 屏幕(x+width,y+height)
+        GL11.glTexCoord2f(1.0f, 1.0f);
+        GL11.glVertex2f(x + width, y + height);
+        // 左下角：纹理(0,1) → 屏幕(x,y+height)
+        GL11.glTexCoord2f(0.0f, 1.0f);
+        GL11.glVertex2f(x, y + height);
+        GL11.glEnd();
+    
+        // 3. 状态清理（避免影响后续绘制）
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+    
+        // 检查绘制错误
+        int drawError = GL11.glGetError();
+        if (drawError != GL11.GL_NO_ERROR) {
+            System.err.println("[GPURenderer] drawImage: 绘制错误 0x" + Integer.toHexString(drawError));
+        }
+    }
+
+    private int createImageTexture(BufferedImage image) {
+        int imgWidth = image.getWidth();
+        int imgHeight = image.getHeight();
+
+        // 1. 转换像素数据（ARGB → RGBA 字节缓冲区）
+        int[] pixelData = new int[imgWidth * imgHeight];
+        image.getRGB(0, 0, imgWidth, imgHeight, pixelData, 0, imgWidth);
+
+        ByteBuffer textureBuffer = BufferUtils.createByteBuffer(imgWidth * imgHeight * 4);
+        for (int pixel : pixelData) {
+            byte red = (byte) ((pixel >> 16) & 0xFF);
+            byte green = (byte) ((pixel >> 8) & 0xFF);
+            byte blue = (byte) (pixel & 0xFF);
+            byte alpha = (byte) ((pixel >> 24) & 0xFF);
+            textureBuffer.put(red).put(green).put(blue).put(alpha);
+        }
+        textureBuffer.flip();
+
+        // 2. 创建并配置纹理
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
+
+        IntBuffer textureIdBuffer = BufferUtils.createIntBuffer(1);
+        GL11.glGenTextures(textureIdBuffer);
+        int textureId = textureIdBuffer.get(0);
+
+        if (textureId <= 0) {
+            System.err.println("[GPURenderer] createImageTexture: 纹理ID生成失败");
+            GL11.glDisable(GL11.GL_TEXTURE_2D);
+            return 0;
+        }
+
+        try {
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+
+            // 纹理过滤（根据需求选择：GL_LINEAR平滑，GL_NEAREST锐利）
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+            // 环绕模式（避免图像边缘重复）
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
+
+            // 上传纹理数据（只上传一次！）
+            GL11.glTexImage2D(
+                GL11.GL_TEXTURE_2D,
+                0,
+                GL11.GL_RGBA,
+                imgWidth,
+                imgHeight,
+                0,
+                GL11.GL_RGBA,
+                GL11.GL_UNSIGNED_BYTE,
+                textureBuffer
+            );
+
+            int uploadError = GL11.glGetError();
+            if (uploadError != GL11.GL_NO_ERROR) {
+                System.err.println("[GPURenderer] createImageTexture: 上传错误 0x" + Integer.toHexString(uploadError));
+                GL11.glDeleteTextures(textureId);
+                return 0;
+            }
+
+            return textureId;
+        } finally {
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
+            GL11.glDisable(GL11.GL_TEXTURE_2D);
+        }
     }
     
     private void preloadTextures() {
@@ -535,6 +667,14 @@ public class GPURenderer implements IRenderer {
             }
         }
         charTextures.clear();
+
+        // 清理图像纹理缓存
+        for (Integer textureId : imageTextureCache.values()) {
+            if (textureId > 0) {
+                GL11.glDeleteTextures(textureId);
+            }
+        }
+        imageTextureCache.clear();
         
         if (window != MemoryUtil.NULL) {
             GLFW.glfwDestroyWindow(window);
